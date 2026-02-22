@@ -97,8 +97,12 @@ def get_explainer() -> ExplainerBundle | None:
     bundle = get_bundle()
     if bundle is None:
         return None
-    bg = pd.DataFrame([{c: 0.0 for c in bundle.feature_cols} for _ in range(50)])
-    return make_explainer(bundle, bg)
+    try:
+        bg = pd.DataFrame([{c: 0.0 for c in bundle.feature_cols} for _ in range(50)])
+        return make_explainer(bundle, bg)
+    except Exception:
+        log.warning("Explainer unavailable. Falling back to heuristic explanations.")
+        return None
 
 
 def row_to_features(row: PredictRow, bundle: EnsembleBundle) -> pd.DataFrame:
