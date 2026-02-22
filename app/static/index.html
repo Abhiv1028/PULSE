@@ -1006,7 +1006,7 @@
     }
 
     function filterNeighborhoods(filter, btn) {
-      document.querySelectorAll(".eq-filter-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll("#page-equity .eq-filter-btn").forEach((b) => b.classList.remove("active"));
       if (btn) btn.classList.add("active");
       renderNeighborhoods(filter);
     }
