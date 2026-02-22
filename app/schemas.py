@@ -26,3 +26,8 @@ class PredictResponse(BaseModel):
 
 class ExplainResponse(BaseModel):
     top_features: list[dict]
+
+
+class SimulateRequest(BaseModel):
+    policies: dict[str, float]
+    context: Optional[dict[str, float]] = Field(default=None)
