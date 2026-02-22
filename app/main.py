@@ -134,8 +134,8 @@ def startup() -> None:
     log.info("PULSE API startup complete. model_path=%s", settings.model_path)
 
 
-@app.get("/", include_in_schema=False)
-def root() -> FileResponse | JSONResponse:
+@app.get("/", include_in_schema=False, response_model=None)
+def root():
     if INDEX_HTML.exists():
         return FileResponse(INDEX_HTML)
     return JSONResponse(
