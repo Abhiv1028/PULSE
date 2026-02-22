@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PULSE — EMS Command Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --red:#ff4b4b;--teal:#0fb8a0;--amber:#f5a623;--sky:#4ab3f4;--rose:#f05050;
+      --bg:#060910;--bg-2:#0b0f1a;--bg-3:#101622;--bg-4:#151d2e;
+      --card:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.08);--txt:#e8eaf0;--txt2:rgba(232,234,240,0.66);--txt3:rgba(232,234,240,0.4);
+      --mono:'IBM Plex Mono',monospace;--body:'IBM Plex Sans',sans-serif;--display:'Bebas Neue',sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{background:var(--bg);color:var(--txt);font-family:var(--body);font-size:14px;overflow:hidden}
+
+    #splash{position:fixed;inset:0;background:radial-gradient(ellipse at center, rgba(255,75,75,.08), transparent 55%),var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:50;transition:opacity .6s ease}
+    #splash.hide{opacity:0;pointer-events:none}
+    .s-wordmark{font-family:var(--display);font-size:84px;letter-spacing:20px;color:#fff;line-height:1}
+    .s-wordmark span{color:var(--red)}
+    .s-tag{font-family:var(--mono);font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--txt3);margin-top:8px}
+    #splash-bar{position:absolute;left:0;bottom:0;height:2px;background:var(--red);box-shadow:0 0 12px rgba(255,75,75,.7);animation:load 2.9s ease forwards}
+    @keyframes load{from{width:0}to{width:100%}}
+
+    #app{display:none;height:100%;flex-direction:column}
+    #app.show{display:flex}
+
+    .top-nav{height:52px;background:var(--bg-2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:14px}
+    .brand{display:flex;align-items:center;gap:10px;margin-right:8px}
+    .logo{font-family:var(--display);font-size:24px;letter-spacing:6px}
+    .logo span{color:var(--red)}
+    .badge{font-family:var(--mono);font-size:8px;letter-spacing:2px;padding:2px 6px;border:1px solid var(--border);border-radius:3px;color:var(--txt3)}
+
+    .tabs{display:flex;height:100%}
+    .tab{height:100%;border:none;background:none;color:var(--txt3);padding:0 14px;font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase;border-bottom:2px solid transparent;cursor:pointer}
+    .tab.active{color:var(--txt);border-bottom-color:var(--red)}
+    .tab:hover{color:var(--txt2)}
+    .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+    .live{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);display:flex;align-items:center;gap:6px}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px rgba(15,184,160,.75)}
+    .clock{font-family:var(--mono);font-size:11px;color:var(--txt2)}
+
+    .status{height:64px;background:var(--bg-2);border-bottom:1px solid var(--border);display:flex;overflow-x:auto}
+    .chip{min-width:155px;padding:10px 16px;border-right:1px solid var(--border)}
+    .chip-label{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3)}
+    .chip-val{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1.1;margin-top:3px}
+    .chip-sub{font-family:var(--mono);font-size:9px;color:var(--txt3)}
+    .good{color:var(--teal)}.warn{color:var(--amber)}.bad{color:var(--rose)}
+
+    .page{display:none;flex:1;overflow:hidden}
+    .page.active{display:flex}
+
+    /* Overview */
+    .overview{display:grid;grid-template-columns:1fr 1fr 340px;grid-template-rows:1fr 1fr;gap:12px;padding:12px;height:100%}
+    .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+    .head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+    .title{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3)}
+    .pill{font-family:var(--mono);font-size:9px;color:var(--txt3);border:1px solid var(--border);padding:2px 7px;border-radius:3px}
+    .body{padding:14px;overflow:auto;flex:1}
+    .map-panel{grid-column:1/2;grid-row:1/3}
+    .map-wrap{position:relative;flex:1;background:var(--bg-3)}
+    .map-wrap svg{width:100%;height:100%}
+    .zone-poly{cursor:pointer}
+    .legend{position:absolute;right:10px;bottom:10px;background:rgba(6,9,16,.88);border:1px solid var(--border);padding:10px;border-radius:7px}
+    .legend div{font-family:var(--mono);font-size:9px;color:var(--txt2);margin-bottom:4px}
+    .units{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+    .unit{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:10px}
+    .uid{font-family:var(--mono);font-size:11px;font-weight:700}
+    .ust{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;display:inline-block;margin:6px 0}
+    .uz{font-family:var(--mono);font-size:9px;color:var(--txt3)}
+    .us-available{background:rgba(15,184,160,.15);color:var(--teal)}
+    .us-dispatched{background:rgba(255,75,75,.15);color:var(--red)}
+    .us-staging{background:rgba(245,166,35,.15);color:var(--amber)}
+    .us-hospital{background:rgba(74,179,244,.15);color:var(--sky)}
+    .alerts{display:flex;flex-direction:column;gap:8px}
+    .alert{background:var(--bg-3);border:1px solid var(--border);border-left:3px solid transparent;border-radius:10px;padding:10px}
+    .alert.critical{border-left-color:var(--rose)} .alert.warning{border-left-color:var(--amber)} .alert.info{border-left-color:var(--sky)}
+    .atitle{font-weight:600;margin-bottom:3px}
+    .adesc{font-size:12px;color:var(--txt2)} .atime{margin-top:5px;font-family:var(--mono);font-size:9px;color:var(--txt3)}
+    .side{grid-column:3/4;grid-row:1/3;display:flex;flex-direction:column;gap:10px;overflow:auto}
+    .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .kpi{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .knum{font-family:var(--mono);font-size:24px;font-weight:700}
+    .klbl{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3)}
+    .spark-row{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border)}
+    .spark-row:last-child{border-bottom:none}
+    .sname{font-family:var(--mono);font-size:10px;color:var(--txt2);width:112px}
+    .spark{flex:1;height:24px}
+    .sval{font-family:var(--mono);font-size:11px;font-weight:700;width:46px;text-align:right}
+
+    /* Equity */
+    .equity{display:grid;grid-template-columns:370px 1fr;height:100%}
+    .eq-left{border-right:1px solid var(--border);display:flex;flex-direction:column}
+    .filters{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap}
+    .fbtn{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;border:1px solid var(--border);background:none;color:var(--txt3);padding:4px 10px;border-radius:3px;cursor:pointer}
+    .fbtn.active{background:rgba(255,75,75,.12);border-color:rgba(255,75,75,.3);color:var(--red)}
+    .eq-list{overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+    .nb{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer}
+    .nb.sel{border-color:var(--red);background:rgba(255,75,75,.06)}
+    .nb-top{display:flex;justify-content:space-between;gap:8px}
+    .nb-name{font-weight:600}
+    .nb-dist{font-family:var(--mono);font-size:9px;color:var(--txt3)}
+    .nb-st{font-family:var(--mono);font-size:8px;letter-spacing:1.2px;border:1px solid;padding:3px 7px;border-radius:3px;text-transform:uppercase}
+    .eq-optimal{color:var(--teal);border-color:rgba(15,184,160,.4);background:rgba(15,184,160,.1)}
+    .eq-monitor{color:var(--amber);border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.1)}
+    .eq-deficit{color:#f07030;border-color:rgba(240,112,48,.4);background:rgba(240,112,48,.1)}
+    .eq-critical{color:var(--rose);border-color:rgba(240,80,80,.4);background:rgba(240,80,80,.1)}
+    .bars{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+    .br{display:flex;align-items:center;gap:8px}
+    .bl{font-family:var(--mono);font-size:9px;color:var(--txt3);width:60px}
+    .bt{flex:1;height:6px;background:var(--bg-2);border-radius:4px;overflow:hidden}
+    .bf{height:100%}
+    .bv{font-family:var(--mono);font-size:11px;width:34px;text-align:right}
+    .bnote{margin-top:10px;font-family:var(--mono);font-size:9px;padding:6px 9px;border-radius:6px}
+    .bnote.flag{background:rgba(240,80,80,.08);border:1px solid rgba(240,80,80,.25);color:var(--rose)}
+    .bnote.ok{background:rgba(15,184,160,.08);border:1px solid rgba(15,184,160,.25);color:var(--teal)}
+    .eq-right{overflow:auto;padding:20px}
+    .sec-title{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);margin-bottom:10px}
+    .dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+    .dcard{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .dlabel{font-family:var(--mono);font-size:9px;color:var(--txt3);text-transform:uppercase}
+    .dval{font-family:var(--mono);font-size:26px;font-weight:700}
+    .dsub{font-family:var(--mono);font-size:9px;color:var(--txt3)}
+    .box{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:14px;color:var(--txt2);line-height:1.7}
+
+    /* Optimizer / Dispatch / Simulator */
+    .split{display:grid;grid-template-columns:430px 1fr;height:100%}
+    .left{border-right:1px solid var(--border);overflow:auto;padding:18px}
+    .rightp{overflow:auto;padding:18px}
+    .slider{margin-bottom:12px;background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .shead{display:flex;justify-content:space-between;margin-bottom:6px}
+    .slabel{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--txt2)}
+    .snum{font-family:var(--mono);font-size:19px;font-weight:700}
+    .slider input{width:100%}
+    .btn{width:100%;padding:12px;border:none;border-radius:10px;background:var(--red);color:#fff;font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer}
+    .score{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+    .score-top{display:flex;justify-content:space-between}
+    .track{height:6px;border-radius:4px;background:var(--bg-2);overflow:hidden;margin:8px 0}
+    .fill{height:100%}
+    .dispatch-wrap{padding:12px;overflow:auto;width:100%}
+    table{width:100%;border-collapse:collapse}
+    th{position:sticky;top:0;background:var(--bg-2);font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);padding:10px;text-align:left;border-bottom:1px solid var(--border)}
+    td{padding:10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--txt2)}
+    tr:hover td{background:rgba(255,255,255,.02);color:var(--txt)}
+    .sim-layout{display:grid;grid-template-columns:420px 1fr;height:100%}
+    .sim-left{border-right:1px solid var(--border);overflow:auto}
+    .sim-sec{padding:14px 18px;border-bottom:1px solid var(--border)}
+    .sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .preset{background:var(--bg-3);border:1px solid var(--border);padding:9px;border-radius:8px;text-align:left;color:var(--txt2);cursor:pointer}
+    .preset.active{border-color:var(--teal);background:rgba(15,184,160,.1)}
+    .policy{padding:12px 18px;border-bottom:1px solid var(--border)}
+    .prow{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .toggle{width:34px;height:18px;border-radius:9px;background:var(--bg-2);border:1px solid var(--border);position:relative;cursor:pointer}
+    .toggle::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--txt3);transition:transform .2s}
+    .toggle.on{background:rgba(15,184,160,.2);border-color:rgba(15,184,160,.55)}
+    .toggle.on::after{background:var(--teal);transform:translateX(14px)}
+    .sim-right{overflow:auto;padding:18px}
+    .placeholder{padding:80px;text-align:center;color:var(--txt3)}
+    .sim-res{display:none;flex-direction:column;gap:12px}
+    .sim-res.show{display:flex}
+    .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .mcard{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .ml{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3)}
+    .mv{font-family:var(--mono);font-size:26px;font-weight:700}
+    .cmp{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .err{display:none;background:rgba(255,75,75,.08);border:1px solid rgba(255,75,75,.25);padding:10px;border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--red);white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <div class="s-wordmark">PUL<span>S</span>E</div>
+    <div class="s-tag">EMS Command Intelligence</div>
+    <div id="splash-bar"></div>
+  </div>
+
+  <div id="app">
+    <nav class="top-nav">
+      <div class="brand"><div class="logo">PUL<span>S</span>E</div><div class="badge">v2.4.1</div></div>
+      <div class="tabs">
+        <button class="tab active" data-page="overview">Overview</button>
+        <button class="tab" data-page="equity">Neighborhood Equity</button>
+        <button class="tab" data-page="optimizer">Optimizer</button>
+        <button class="tab" data-page="dispatch">Dispatch Log</button>
+        <button class="tab" data-page="simulator">Policy Simulator</button>
+      </div>
+      <div class="right">
+        <div class="live"><span class="dot"></span>Live</div>
+        <div class="clock" id="clock">--:--:--</div>
+      </div>
+    </nav>
+
+    <div class="status">
+      <div class="chip"><div class="chip-label">Active Units</div><div class="chip-val good" id="s-active-units">--</div><div class="chip-sub" id="s-active-sub">--</div></div>
+      <div class="chip"><div class="chip-label">Avg Response</div><div class="chip-val warn" id="s-avg-response">--</div><div class="chip-sub" id="s-avg-sub">--</div></div>
+      <div class="chip"><div class="chip-label">Open Calls</div><div class="chip-val bad" id="s-open-calls">--</div><div class="chip-sub" id="s-open-sub">--</div></div>
+      <div class="chip"><div class="chip-label">Gini Index</div><div class="chip-val warn" id="s-gini">--</div><div class="chip-sub">equity score</div></div>
+      <div class="chip"><div class="chip-label">Coverage Zones</div><div class="chip-val good" id="s-coverage">--</div><div class="chip-sub" id="s-coverage-sub">--</div></div>
+      <div class="chip"><div class="chip-label">Calls Today</div><div class="chip-val" id="s-calls">--</div><div class="chip-sub" id="s-calls-sub">--</div></div>
+    </div>
+
+    <section class="page active" id="page-overview">
+      <div class="overview">
+        <div class="panel map-panel">
+          <div class="head"><div class="title">Zone Coverage Map</div><div class="pill">Real-time</div></div>
+          <div class="map-wrap">
+            <svg viewBox="0 0 600 500">
+              <rect width="600" height="500" fill="#0b0f1a"/>
+              <g stroke="rgba(255,255,255,.05)" stroke-width=".5">
+                <line x1="0" y1="100" x2="600" y2="100"/><line x1="0" y1="200" x2="600" y2="200"/><line x1="0" y1="300" x2="600" y2="300"/><line x1="0" y1="400" x2="600" y2="400"/>
+                <line x1="100" y1="0" x2="100" y2="500"/><line x1="200" y1="0" x2="200" y2="500"/><line x1="300" y1="0" x2="300" y2="500"/><line x1="400" y1="0" x2="400" y2="500"/><line x1="500" y1="0" x2="500" y2="500"/>
+              </g>
+              <polygon class="zone-poly" data-zone="Zone 3A" points="120,60 280,60 280,200 120,200" fill="rgba(15,184,160,0.2)" stroke="rgba(15,184,160,.5)"/>
+              <text x="200" y="135" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 3A</text>
+              <polygon class="zone-poly" data-zone="Zone 6" points="280,60 440,60 440,200 280,200" fill="rgba(245,166,35,0.15)" stroke="rgba(245,166,35,.5)"/>
+              <text x="360" y="135" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 6</text>
+              <polygon class="zone-poly" data-zone="Zone 9" points="440,60 580,60 580,200 440,200" fill="rgba(240,80,80,0.2)" stroke="rgba(240,80,80,.55)"/>
+              <text x="510" y="135" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 9</text>
+              <polygon class="zone-poly" data-zone="Zone 11" points="20,200 280,200 280,360 20,360" fill="rgba(240,80,80,0.18)" stroke="rgba(240,80,80,.5)"/>
+              <text x="150" y="285" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 11</text>
+              <polygon class="zone-poly" data-zone="Zone 14" points="280,200 580,200 580,360 280,360" fill="rgba(15,184,160,0.13)" stroke="rgba(15,184,160,.4)"/>
+              <text x="430" y="285" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 14</text>
+              <polygon class="zone-poly" data-zone="Zone 2" points="20,360 300,360 300,480 20,480" fill="rgba(74,179,244,0.12)" stroke="rgba(74,179,244,.45)"/>
+              <text x="160" y="425" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 2</text>
+              <polygon class="zone-poly" data-zone="Zone 7" points="300,360 580,360 580,480 300,480" fill="rgba(15,184,160,0.14)" stroke="rgba(15,184,160,.4)"/>
+              <text x="440" y="425" fill="rgba(255,255,255,.66)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Zone 7</text>
+            </svg>
+            <div class="legend">
+              <div>Optimal / Monitor / Deficit / Critical</div>
+              <div style="color:var(--teal)">● Optimal</div>
+              <div style="color:var(--amber)">● Monitor</div>
+              <div style="color:#f07030">● Deficit</div>
+              <div style="color:var(--rose)">● Critical</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="grid-column:2/3;grid-row:1/2">
+          <div class="head"><div class="title">Active Units</div><div class="pill" id="units-pill">--</div></div>
+          <div class="body"><div class="units" id="units"></div></div>
+        </div>
+
+        <div class="panel" style="grid-column:2/3;grid-row:2/3">
+          <div class="head"><div class="title">Active Alerts</div><div class="pill" id="alerts-pill">--</div></div>
+          <div class="body"><div class="alerts" id="alerts"></div></div>
+        </div>
+
+        <div class="side">
+          <div class="panel">
+            <div class="head"><div class="title">Performance KPIs</div></div>
+            <div class="body">
+              <div class="kpi-grid">
+                <div class="kpi"><div class="knum good" id="kpi-response">--</div><div class="klbl">Avg Response (min)</div></div>
+                <div class="kpi"><div class="knum warn" id="kpi-gini">--</div><div class="klbl">Gini Index</div></div>
+                <div class="kpi"><div class="knum good" id="kpi-target">--</div><div class="klbl">8-min Target Met</div></div>
+                <div class="kpi"><div class="knum bad" id="kpi-critical">--</div><div class="klbl">Critical Zones</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="head"><div class="title">7-Day Trend by Zone</div></div>
+            <div id="sparks"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-equity">
+      <div class="equity">
+        <div class="eq-left">
+          <div class="filters">
+            <button class="fbtn active" data-filter="all">All Zones</button>
+            <button class="fbtn" data-filter="critical">Critical</button>
+            <button class="fbtn" data-filter="deficit">Deficit</button>
+            <button class="fbtn" data-filter="optimal">Optimal</button>
+          </div>
+          <div class="eq-list" id="eq-list"></div>
+        </div>
+        <div class="eq-right" id="eq-detail">
+          <div class="sec-title">Neighborhood Equity Detail</div>
+          <div class="box">Select a neighborhood on the left to inspect response, coverage, population, and fairness context.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-optimizer">
+      <div class="split">
+        <div class="left">
+          <div class="sec-title">Optimization Mode</div>
+          <div class="box" style="margin-bottom:12px">Adjust priority weights to rebalance safety, fairness, and efficiency outcomes. Scores and disparity indicators update in real-time.</div>
+          <div class="slider"><div class="shead"><div class="slabel">Safety Priority</div><div class="snum" id="w-safety-v">50%</div></div><input id="w-safety" type="range" min="0" max="100" value="50"></div>
+          <div class="slider"><div class="shead"><div class="slabel">Fairness Weight</div><div class="snum" id="w-fair-v">35%</div></div><input id="w-fair" type="range" min="0" max="100" value="35"></div>
+          <div class="slider"><div class="shead"><div class="slabel">Resource Efficiency</div><div class="snum" id="w-res-v">15%</div></div><input id="w-res" type="range" min="0" max="100" value="15"></div>
+          <button class="btn" id="recompute">↻ Reoptimize</button>
+        </div>
+        <div class="rightp">
+          <div class="sec-title">Projected Scores</div>
+          <div class="score"><div class="score-top"><div class="slabel">Safety Score</div><div class="snum" id="score-safety">--</div></div><div class="track"><div class="fill" id="bar-safety" style="width:0;background:var(--rose)"></div></div></div>
+          <div class="score"><div class="score-top"><div class="slabel">Fairness Score</div><div class="snum" id="score-fair">--</div></div><div class="track"><div class="fill" id="bar-fair" style="width:0;background:var(--amber)"></div></div></div>
+          <div class="score"><div class="score-top"><div class="slabel">Efficiency Score</div><div class="snum" id="score-eff">--</div></div><div class="track"><div class="fill" id="bar-eff" style="width:0;background:var(--sky)"></div></div></div>
+          <div class="score">
+            <div class="score-top"><div class="slabel">Equity Disparity Index (Gini)</div><div class="snum warn" id="score-gini">--</div></div>
+            <div class="track"><div class="fill" id="bar-gini" style="width:0;background:linear-gradient(to right,var(--teal),var(--amber),var(--rose))"></div></div>
+          </div>
+          <div class="sec-title" style="margin-top:12px">Recommendations</div>
+          <div id="recos"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-dispatch">
+      <div class="dispatch-wrap">
+        <table>
+          <thead><tr><th>Call ID</th><th>Type</th><th>Zone</th><th>Unit</th><th>Dispatched</th><th>Response</th><th>Status</th></tr></thead>
+          <tbody id="dispatch"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="page" id="page-simulator">
+      <div class="sim-layout">
+        <div class="sim-left">
+          <div class="sim-sec">
+            <div class="sec-title">Quick Scenario Presets</div>
+            <div class="sim-grid" id="preset-grid"></div>
+          </div>
+          <div id="policy-list"></div>
+          <div class="sim-sec">
+            <div class="sec-title">Context (optional)</div>
+            <div class="sim-grid">
+              <select id="ctx-weather"><option value="">Weather</option><option value="0">Clear</option><option value="1">Rain</option><option value="2">Snow/Ice</option><option value="3">Fog</option></select>
+              <select id="ctx-hour"><option value="">Hour</option><option value="8">08:00</option><option value="13">13:00</option><option value="17">17:00</option><option value="22">22:00</option></select>
+              <select id="ctx-surface"><option value="">Surface</option><option value="0">Dry</option><option value="1">Wet</option><option value="2">Snow/Ice</option></select>
+              <select id="ctx-month"><option value="">Month</option><option value="1">Jan</option><option value="3">Mar</option><option value="7">Jul</option><option value="11">Nov</option></select>
+            </div>
+          </div>
+          <div class="sim-sec"><button class="btn" id="run-sim">▶ Run Simulation</button></div>
+        </div>
+        <div class="sim-right">
+          <div class="placeholder" id="sim-placeholder">Run a policy scenario to generate impact estimates, uncertainty, and explainable recommendations.</div>
+          <div class="err" id="sim-error"></div>
+          <div class="sim-res" id="sim-results">
+            <div class="metrics">
+              <div class="mcard"><div class="ml">Risk Reduction</div><div class="mv good" id="m-red">--</div><div class="ml" id="m-ci">CI: --</div></div>
+              <div class="mcard"><div class="ml">Predicted Severity</div><div class="mv warn" id="m-sev">--</div><div class="ml">vs <span id="m-base">--</span> baseline</div></div>
+              <div class="mcard"><div class="ml">Crashes Prevented</div><div class="mv" style="color:var(--sky)" id="m-crash">--</div><div class="ml">estimated annually</div></div>
+              <div class="mcard"><div class="ml">Model Uncertainty</div><div class="mv bad" id="m-unc">--</div><div class="ml" id="m-unc-l">confidence score</div></div>
+            </div>
+            <div class="cmp">
+              <div class="sec-title">Risk Before vs After</div>
+              <div class="slabel" style="display:flex;justify-content:space-between"><span>Baseline</span><span id="m-bval">--</span></div>
+              <div class="track"><div class="fill" id="m-bbar" style="width:0;background:var(--rose)"></div></div>
+              <div class="slabel" style="display:flex;justify-content:space-between"><span>Simulated</span><span id="m-mval">--</span></div>
+              <div class="track"><div class="fill" id="m-mbar" style="width:0;background:var(--teal)"></div></div>
+            </div>
+            <div class="cmp"><div class="sec-title">Policy Contributions</div><div id="m-contrib"></div></div>
+            <div class="cmp"><div class="sec-title">AI Explanation</div><div class="box" id="m-explain"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const STATUS_COLORS = {
+      optimal:{fill:'rgba(15,184,160,0.16)',stroke:'rgba(15,184,160,0.55)'},
+      monitor:{fill:'rgba(245,166,35,0.16)',stroke:'rgba(245,166,35,0.55)'},
+      deficit:{fill:'rgba(240,112,48,0.16)',stroke:'rgba(240,112,48,0.55)'},
+      critical:{fill:'rgba(240,80,80,0.19)',stroke:'rgba(240,80,80,0.62)'}
+    };
+
+    const SIM_POLICIES = {
+      speed_limit_reduction:{label:"Speed Limit Reduction",icon:"🚦"},
+      stop_sign_increase:{label:"Add Stop Signs / All-Way Stops",icon:"🛑"},
+      street_lighting_improvement:{label:"Street Lighting Improvement",icon:"💡"},
+      road_surface_improvement:{label:"Road Surface Improvement",icon:"🛣️"},
+      traffic_calming_measures:{label:"Traffic Calming Measures",icon:"🔄"},
+      pedestrian_crossing_improvements:{label:"Pedestrian Crossing Upgrades",icon:"🚶"},
+      visibility_enhancement:{label:"Visibility Enhancement",icon:"🪧"},
+      weather_responsive_treatment:{label:"Weather-Responsive Treatment",icon:"❄️"},
+    };
+
+    const PRESETS = {
+      safe_streets_lite:{label:"Safe Streets Lite",policies:{street_lighting_improvement:5,visibility_enhancement:6,pedestrian_crossing_improvements:5}},
+      speed_first:{label:"Speed Focus",policies:{speed_limit_reduction:8,stop_sign_increase:6,traffic_calming_measures:7}},
+      winter_ready:{label:"Winter Ready",policies:{weather_responsive_treatment:9,road_surface_improvement:7,street_lighting_improvement:5}},
+      full_bundle:{label:"Full Bundle",policies:Object.fromEntries(Object.keys(SIM_POLICIES).map(k=>[k,7]))},
+    };
+
+    const state = {
+      dashboard:null,
+      neighborhoods:[],
+      filter:'all',
+      selectedNeighborhood:null,
+      simPolicy:Object.fromEntries(Object.keys(SIM_POLICIES).map(k=>[k,{enabled:false,value:5}]))
+    };
+
+    function setClock(){
+      document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }
+    setInterval(setClock,1000); setClock();
+
+    setTimeout(()=>{
+      document.getElementById('splash').classList.add('hide');
+      document.getElementById('app').classList.add('show');
+      init();
+    },3200);
+
+    function init(){
+      initTabs();
+      initEquityFilters();
+      initOptimizer();
+      initSimulator();
+      loadDashboard();
+    }
+
+    function initTabs(){
+      document.querySelectorAll('.tab').forEach(tab=>{
+        tab.onclick=()=>{
+          document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+          document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById('page-'+tab.dataset.page).classList.add('active');
+        };
+      });
+    }
+
+    async function loadDashboard(){
+      try{
+        const res = await fetch('/api/dashboard/bootstrap');
+        if(!res.ok) throw new Error('Failed to load dashboard data');
+        state.dashboard = await res.json();
+        state.neighborhoods = state.dashboard.neighborhoods || [];
+        state.selectedNeighborhood = state.neighborhoods[0] || null;
+        renderDashboard();
+      }catch(e){
+        document.getElementById('s-active-sub').textContent = 'API unavailable';
+      }
+    }
+
+    function renderDashboard(){
+      renderSummary();
+      renderMap();
+      renderUnits();
+      renderAlerts();
+      renderSparks();
+      renderEquity();
+      renderDispatch();
+      renderOptimizer();
+    }
+
+    function renderSummary(){
+      const s = state.dashboard.summary || {};
+      document.getElementById('s-active-units').textContent = s.active_units ?? '--';
+      document.getElementById('s-active-sub').textContent = `of ${s.fleet_total ?? '--'} deployed`;
+      document.getElementById('s-avg-response').textContent = `${(s.avg_response_min ?? 0).toFixed?.(1) ?? s.avg_response_min} min`;
+      document.getElementById('s-avg-sub').textContent = 'citywide operational average';
+      document.getElementById('s-open-calls').textContent = s.open_calls ?? '--';
+      document.getElementById('s-open-sub').textContent = `${s.critical_open_calls ?? 0} critical priority`;
+      document.getElementById('s-gini').textContent = (s.gini_index ?? '--').toString();
+      document.getElementById('s-coverage').textContent = s.zones_at_target ?? '--';
+      document.getElementById('s-coverage-sub').textContent = `of ${s.zones_total ?? '--'} at target`;
+      document.getElementById('s-calls').textContent = s.calls_today ?? '--';
+      const delta = s.calls_delta ?? 0;
+      document.getElementById('s-calls-sub').textContent = `${delta>=0?'+':''}${delta} vs yesterday`;
+
+      document.getElementById('kpi-response').textContent = (s.avg_response_min ?? '--').toString();
+      document.getElementById('kpi-gini').textContent = (s.gini_index ?? '--').toString();
+      document.getElementById('kpi-target').textContent = `${s.eight_min_target_pct ?? 0}%`;
+      document.getElementById('kpi-critical').textContent = (state.neighborhoods.filter(n=>n.status==='critical').length).toString();
+    }
+
+    function renderMap(){
+      const mapStatus = state.dashboard.map_zone_status || {};
+      document.querySelectorAll('.zone-poly[data-zone]').forEach(p=>{
+        const zone = p.getAttribute('data-zone');
+        const st = mapStatus[zone];
+        if(st && STATUS_COLORS[st]){
+          p.setAttribute('fill', STATUS_COLORS[st].fill);
+          p.setAttribute('stroke', STATUS_COLORS[st].stroke);
+          p.setAttribute('stroke-width', '1.5');
+        }
+      });
+    }
+
+    function renderUnits(){
+      const units = state.dashboard.units || [];
+      document.getElementById('units-pill').textContent = `${units.length}`;
+      document.getElementById('units').innerHTML = units.map(u=>`
+        <div class="unit">
+          <div class="uid">${u.id}</div>
+          <div class="ust us-${u.status}">${u.statusLabel}</div>
+          <div class="uz">${u.zone}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderAlerts(){
+      const alerts = state.dashboard.alerts || [];
+      document.getElementById('alerts-pill').textContent = `${alerts.length} Open`;
+      document.getElementById('alerts').innerHTML = alerts.map(a=>`
+        <div class="alert ${a.type}">
+          <div class="atitle">${a.icon} ${a.title}</div>
+          <div class="adesc">${a.desc}</div>
+          <div class="atime">${a.time}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderSparks(){
+      const sparks = state.dashboard.sparks || [];
+      const html = sparks.map(s=>{
+        const min = Math.min(...s.values), max = Math.max(...s.values), w=120,h=24,p=3;
+        const pts = s.values.map((v,i)=>{
+          const x=p + i/(s.values.length-1)*(w-2*p);
+          const y=h-p - ((v-min)/((max-min)||1))*(h-2*p);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        const c = s.dir==='up'?'#0fb8a0':'#f05050';
+        return `<div class="spark-row">
+            <div class="sname">${s.name.split('—')[0].trim()}</div>
+            <div class="spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.5"/></svg></div>
+            <div class="sval" style="color:${c}">${s.change}m</div>
+          </div>`;
+      }).join('');
+      document.getElementById('sparks').innerHTML = html;
+    }
+
+    function initEquityFilters(){
+      document.querySelectorAll('.fbtn').forEach(btn=>{
+        btn.onclick=()=>{
+          document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          state.filter = btn.dataset.filter;
+          renderEquity();
+        };
+      });
+    }
+
+    function renderEquity(){
+      const list = document.getElementById('eq-list');
+      const data = state.filter==='all' ? state.neighborhoods : state.neighborhoods.filter(n=>n.status===state.filter);
+      list.innerHTML = data.map(n=>{
+        const rtPct = Math.min((n.responseTime.current/16)*100,100);
+        const covPct = Math.min((n.coverage.current/4)*100,100);
+        const rtCol = n.responseTime.current>n.responseTime.floor?'var(--rose)':n.responseTime.current>n.responseTime.target?'#f07030':'var(--teal)';
+        const covCol = n.coverage.current>=n.coverage.min?'var(--teal)':'var(--rose)';
+        const sel = state.selectedNeighborhood?.name===n.name ? 'sel':'';
+        return `<div class="nb ${sel}" data-name="${n.name}">
+            <div class="nb-top"><div><div class="nb-name">${n.name}</div><div class="nb-dist">${n.district} · Pop. ${n.population.toLocaleString()} · ${n.penaltyFactor>1?`Penalty ×${n.penaltyFactor}`:'No penalty'}</div></div><div class="nb-st eq-${n.status}">${n.statusLabel}</div></div>
+            <div class="bars">
+              <div class="br"><div class="bl">Response</div><div class="bt"><div class="bf" style="width:${rtPct}%;background:${rtCol}"></div></div><div class="bv" style="color:${rtCol}">${n.responseTime.current}m</div></div>
+              <div class="br"><div class="bl">Coverage</div><div class="bt"><div class="bf" style="width:${covPct}%;background:${covCol}"></div></div><div class="bv" style="color:${covCol}">${n.coverage.current}u</div></div>
+            </div>
+            <div class="bnote ${n.noteType==='flag'?'flag':'ok'}">${n.noteType==='flag'?'⚠':'✓'} ${n.note}</div>
+          </div>`;
+      }).join('');
+      list.querySelectorAll('.nb').forEach(card=>{
+        card.onclick=()=>{
+          state.selectedNeighborhood = state.neighborhoods.find(n=>n.name===card.dataset.name);
+          renderEquity();
+          renderEquityDetail();
+        };
+      });
+      renderEquityDetail();
+    }
+
+    function renderEquityDetail(){
+      const n = state.selectedNeighborhood;
+      if(!n) return;
+      const rtCol = n.responseTime.current>n.responseTime.floor?'var(--rose)':n.responseTime.current>n.responseTime.target?'#f07030':'var(--teal)';
+      const covCol = n.coverage.current>=n.coverage.min?'var(--teal)':'var(--rose)';
+      document.getElementById('eq-detail').innerHTML = `
+        <div class="sec-title">Zone Overview</div>
+        <div class="dgrid">
+          <div class="dcard"><div class="dlabel">Response Time</div><div class="dval" style="color:${rtCol}">${n.responseTime.current}m</div><div class="dsub">Target ${n.responseTime.target}m · Floor ${n.responseTime.floor}m</div></div>
+          <div class="dcard"><div class="dlabel">Coverage Units</div><div class="dval" style="color:${covCol}">${n.coverage.current}u</div><div class="dsub">Minimum ${n.coverage.min} units</div></div>
+          <div class="dcard"><div class="dlabel">Population</div><div class="dval">${(n.population/1000).toFixed(1)}k</div><div class="dsub">Penalty factor ×${n.penaltyFactor}</div></div>
+        </div>
+        <div class="sec-title">Status Analysis</div>
+        <div class="box"><b style="color:${rtCol}">${n.statusLabel}</b> — ${n.note}</div>
+      `;
+    }
+
+    function renderDispatch(){
+      const rows = state.dashboard.dispatch || [];
+      document.getElementById('dispatch').innerHTML = rows.map(r=>`
+        <tr>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--txt3)">${r.id}</td>
+          <td><span style="font-family:var(--mono);font-size:10px">${r.typeLabel}</span></td>
+          <td>${r.zone}</td>
+          <td style="font-family:var(--mono);font-size:12px">${r.unit}</td>
+          <td style="font-family:var(--mono);font-size:11px">${r.time}</td>
+          <td style="font-family:var(--mono);font-size:12px;color:${parseFloat(r.response)>12?'var(--rose)':parseFloat(r.response)>9?'var(--amber)':'var(--teal)'}">${r.response}</td>
+          <td style="font-family:var(--mono);font-size:10px;letter-spacing:1px;color:${r.status==='Active'?'var(--red)':r.status==='At Hosp.'?'var(--sky)':'var(--txt3)'}">${r.status}</td>
+        </tr>
+      `).join('');
+    }
+
+    function initOptimizer(){
+      ['safety','fair','res'].forEach(k=>{
+        document.getElementById(`w-${k}`).oninput = e=>{
+          document.getElementById(`w-${k}-v`).textContent = `${e.target.value}%`;
+        };
+      });
+      document.getElementById('recompute').onclick = recomputeScores;
+    }
+
+    function renderOptimizer(){
+      const o = state.dashboard.optimizer || {};
+      const s = o.scores || {safety:80,fairness:60,efficiency:60};
+      setScore('safety', s.safety, 'var(--rose)');
+      setScore('fair', s.fairness, 'var(--amber)');
+      setScore('eff', s.efficiency, 'var(--sky)');
+      document.getElementById('score-gini').textContent = (o.gini ?? '--').toString();
+      document.getElementById('bar-gini').style.width = `${Math.min(100,(o.gini||0)*100)}%`;
+
+      const recos = o.recommendations || [];
+      document.getElementById('recos').innerHTML = recos.map(r=>`
+        <div class="score" style="border-left:3px solid ${r.severity==='critical'?'var(--rose)':r.severity==='warning'?'var(--amber)':'var(--sky)'}">
+          <div class="score-top"><div style="font-weight:600">${r.title}</div><div class="pill">${r.priority}</div></div>
+          <div style="margin-top:8px;color:var(--txt2);line-height:1.7">${r.body}</div>
+          <div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--teal)">${r.impact}</div>
+        </div>
+      `).join('');
+    }
+
+    function setScore(name,val,color){
+      document.getElementById(`score-${name}`).textContent = val;
+      document.getElementById(`bar-${name}`).style.width = `${val}%`;
+      document.getElementById(`bar-${name}`).style.background = color;
+    }
+
+    function recomputeScores(){
+      const ws = parseInt(document.getElementById('w-safety').value,10);
+      const wf = parseInt(document.getElementById('w-fair').value,10);
+      const wr = parseInt(document.getElementById('w-res').value,10);
+      const total = ws+wf+wr || 1;
+      setScore('safety', Math.round(68 + (ws/total)*30), 'var(--rose)');
+      setScore('fair', Math.round(52 + (wf/total)*44), 'var(--amber)');
+      setScore('eff', Math.round(55 + (wr/total)*34), 'var(--sky)');
+      const btn = document.getElementById('recompute');
+      btn.textContent = '✓ Optimized'; btn.style.background='var(--teal)';
+      setTimeout(()=>{btn.textContent='↻ Reoptimize';btn.style.background='var(--red)'},1800);
+    }
+
+    function initSimulator(){
+      renderPresetButtons();
+      renderPolicyRows();
+      document.getElementById('run-sim').onclick = runSimulation;
+    }
+
+    function renderPresetButtons(){
+      const grid = document.getElementById('preset-grid');
+      grid.innerHTML = Object.entries(PRESETS).map(([id,p])=>`<button class="preset" id="preset-${id}">${p.label}</button>`).join('');
+      Object.keys(PRESETS).forEach(id=>{
+        document.getElementById(`preset-${id}`).onclick = ()=>applyPreset(id);
+      });
+    }
+
+    function renderPolicyRows(){
+      const list = document.getElementById('policy-list');
+      list.innerHTML = Object.entries(SIM_POLICIES).map(([key,p])=>`
+        <div class="policy">
+          <div class="prow"><div>${p.icon} ${p.label}</div><div class="toggle" id="tgl-${key}"></div></div>
+          <div id="slr-row-${key}" style="opacity:.35;pointer-events:none;display:flex;gap:8px;align-items:center">
+            <input type="range" min="1" max="10" value="5" id="slr-${key}" style="flex:1">
+            <span style="font-family:var(--mono);width:20px;text-align:right;color:var(--teal)" id="val-${key}">5</span>
+          </div>
+        </div>
+      `).join('');
+
+      Object.keys(SIM_POLICIES).forEach(k=>{
+        document.getElementById(`tgl-${k}`).onclick = ()=>togglePolicy(k);
+        document.getElementById(`slr-${k}`).oninput = e=>{
+          state.simPolicy[k].value = parseInt(e.target.value,10);
+          document.getElementById(`val-${k}`).textContent = e.target.value;
+        };
+      });
+    }
+
+    function togglePolicy(key){
+      state.simPolicy[key].enabled = !state.simPolicy[key].enabled;
+      document.getElementById(`tgl-${key}`).classList.toggle('on', state.simPolicy[key].enabled);
+      document.getElementById(`slr-row-${key}`).style.opacity = state.simPolicy[key].enabled ? '1':'0.35';
+      document.getElementById(`slr-row-${key}`).style.pointerEvents = state.simPolicy[key].enabled ? 'all':'none';
+    }
+
+    function applyPreset(id){
+      Object.keys(state.simPolicy).forEach(k=>{
+        state.simPolicy[k].enabled = false;
+        state.simPolicy[k].value = 5;
+      });
+      const p = PRESETS[id].policies;
+      Object.entries(p).forEach(([k,v])=>{
+        state.simPolicy[k].enabled = true;
+        state.simPolicy[k].value = v;
+      });
+      renderPolicyRows();
+      Object.keys(state.simPolicy).forEach(k=>{
+        if(state.simPolicy[k].enabled){
+          document.getElementById(`tgl-${k}`).classList.add('on');
+          document.getElementById(`slr-row-${k}`).style.opacity = '1';
+          document.getElementById(`slr-row-${k}`).style.pointerEvents = 'all';
+          document.getElementById(`slr-${k}`).value = state.simPolicy[k].value;
+          document.getElementById(`val-${k}`).textContent = state.simPolicy[k].value;
+        }
+      });
+      document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
+      document.getElementById(`preset-${id}`).classList.add('active');
+    }
+
+    async function runSimulation(){
+      const active = Object.fromEntries(Object.entries(state.simPolicy).filter(([,v])=>v.enabled).map(([k,v])=>[k,v.value]));
+      if(!Object.keys(active).length){showSimError('Enable at least one policy lever before running a simulation.');return;}
+
+      const ctx = {};
+      if(document.getElementById('ctx-weather').value!=='') ctx.weather_code = parseFloat(document.getElementById('ctx-weather').value);
+      if(document.getElementById('ctx-hour').value!=='') ctx.hour = parseFloat(document.getElementById('ctx-hour').value);
+      if(document.getElementById('ctx-surface').value!=='') ctx.road_surface_code = parseFloat(document.getElementById('ctx-surface').value);
+      if(document.getElementById('ctx-month').value!=='') ctx.month = parseFloat(document.getElementById('ctx-month').value);
+
+      hideSimError();
+      const btn = document.getElementById('run-sim');
+      btn.disabled = true; btn.textContent = 'Simulating…';
+      try{
+        const res = await fetch('/api/simulate',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({policies:active, context:Object.keys(ctx).length?ctx:undefined})
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.detail || 'Simulation failed');
+        renderSimulation(data);
+      }catch(e){
+        showSimError(`Simulation failed: ${e.message}`);
+      }finally{
+        btn.disabled = false; btn.textContent = '▶ Run Simulation';
+      }
+    }
+
+    function renderSimulation(d){
+      document.getElementById('sim-placeholder').style.display = 'none';
+      document.getElementById('sim-results').classList.add('show');
+      document.getElementById('m-red').textContent = `${d.risk_reduction_pct.toFixed(1)}%`;
+      document.getElementById('m-ci').textContent = `CI: ${d.confidence_interval[0].toFixed(1)}%–${d.confidence_interval[1].toFixed(1)}%`;
+      document.getElementById('m-sev').textContent = d.predicted_risk.toFixed(2);
+      document.getElementById('m-base').textContent = d.baseline_risk.toFixed(2);
+      document.getElementById('m-crash').textContent = (d.crash_count_reduction?.estimated || 0).toLocaleString();
+      document.getElementById('m-unc').textContent = `${d.uncertainty_score.toFixed(1)}%`;
+      document.getElementById('m-unc-l').textContent = d.uncertainty_score<5?'low uncertainty':d.uncertainty_score<12?'moderate uncertainty':'high uncertainty';
+      document.getElementById('m-bval').textContent = d.baseline_risk.toFixed(3);
+      document.getElementById('m-mval').textContent = d.predicted_risk.toFixed(3);
+      const maxRisk = Math.max(d.baseline_risk, 5);
+      document.getElementById('m-bbar').style.width = `${(d.baseline_risk/maxRisk*100).toFixed(1)}%`;
+      document.getElementById('m-mbar').style.width = `${(d.predicted_risk/maxRisk*100).toFixed(1)}%`;
+
+      const contrib = Object.entries(d.policy_contributions || {}).sort((a,b)=>b[1]-a[1]);
+      document.getElementById('m-contrib').innerHTML = contrib.map(([k,v])=>`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="width:220px">${SIM_POLICIES[k]?.icon || '📌'} ${SIM_POLICIES[k]?.label || k}</div>
+          <div class="track" style="flex:1;margin:0"><div class="fill" style="width:${Math.min(v*4,100)}%;background:var(--teal)"></div></div>
+          <div style="width:44px;text-align:right;font-family:var(--mono);color:var(--teal)">${v.toFixed(1)}%</div>
+        </div>
+      `).join('');
+      document.getElementById('m-explain').textContent = d.explanation || 'No explanation available.';
+    }
+
+    function showSimError(msg){
+      const e = document.getElementById('sim-error');
+      e.style.display = 'block';
+      e.textContent = msg;
+      document.getElementById('sim-placeholder').style.display = 'none';
+      document.getElementById('sim-results').classList.remove('show');
+    }
+
+    function hideSimError(){
+      document.getElementById('sim-error').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
+
