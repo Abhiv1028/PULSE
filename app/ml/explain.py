@@ -1,20 +1,26 @@
 from dataclasses import dataclass
-from typing import List
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
-import shap
+try:
+    import shap
+except Exception:  # pragma: no cover - optional dependency
+    shap = None
 
 from app.ml.ensemble import EnsembleBundle
 
 
 @dataclass
 class ExplainerBundle:
-    explainer: shap.Explainer
+    explainer: Any
     feature_cols: List[str]
 
 
 def make_explainer(bundle: EnsembleBundle, X_background: pd.DataFrame) -> ExplainerBundle:
+    if shap is None:
+        raise RuntimeError("shap is not installed; explanation model unavailable")
+
     # Use first model as representative explainer target
     model = bundle.models[0]
     background = X_background[bundle.feature_cols].copy()
