@@ -1,4 +1,5 @@
 import logging
+from calendar import monthrange
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -162,7 +163,8 @@ def _context_to_predict_row(overrides: dict[str, float] | None = None) -> Predic
     ts = pd.to_datetime(base["timestamp"])
     if "month" in ovr:
         month = int(np.clip(round(ovr["month"]), 1, 12))
-        ts = ts.replace(month=month)
+        day = min(ts.day, monthrange(ts.year, month)[1])
+        ts = ts.replace(month=month, day=day)
     if "hour" in ovr:
         hour = int(np.clip(round(ovr["hour"]), 0, 23))
         ts = ts.replace(hour=hour, minute=0, second=0, microsecond=0)
